@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Mochiy_Pop_One } from "next/font/google";
 import "./globals.css";
 
@@ -11,6 +11,11 @@ const mochiy = Mochiy_Pop_One({
 export const metadata: Metadata = {
   title: "Vsikolog",
   description: "Kamu tidak sendiri di sini.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#FBF8FD",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

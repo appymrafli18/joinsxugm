@@ -26,19 +26,172 @@
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #FBF8FD;
+  --foreground: #3B2E4A;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-mochiy), sans-serif;
 }
+
+@keyframes splash-logo-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes splash-logo-breathe {
+  from {
+    transform: scale(1);
+  }
+
+  to {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes splash-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes splash-loading-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.splash-logo-enter {
+  animation: splash-logo-enter 700ms ease-out both;
+}
+
+.splash-logo-breathe {
+  animation: splash-logo-breathe 3.6s ease-in-out 700ms infinite alternate;
+}
+
+.splash-fade-in {
+  animation: splash-fade-in 500ms ease-out 600ms both;
+}
+
+.splash-loading-dot {
+  animation: splash-loading-dot 1.8s ease-in-out infinite;
+}
+
+.splash-loading-dot:nth-child(2) {
+  animation-delay: 180ms;
+}
+
+.splash-loading-dot:nth-child(3) {
+  animation-delay: 360ms;
+}
+
+.onboarding-step-content {
+  opacity: 1;
+  transition: opacity 220ms ease-in-out;
+}
+
+.onboarding-step-content[data-transitioning="true"] {
+  opacity: 0;
+}
+
+@keyframes onboarding-step-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.onboarding-step-enter {
+  animation: onboarding-step-enter 260ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-logo-enter,
+  .splash-logo-breathe,
+  .splash-fade-in,
+  .splash-loading-dot,
+  .onboarding-step-enter {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+  }
+
+  .onboarding-step-content {
+    transition-duration: 1ms;
+  }
+}
+
+@keyframes login-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes login-float {
+  0%, 100% { transform: scale(1.04) translateY(0); }
+  50% { transform: scale(1.04) translateY(-6px); }
+}
+@keyframes login-twinkle {
+  0%, 100% { opacity: 0.45; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.login-rise { animation: login-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.login-float { transform-origin: top center; animation: login-float 6s ease-in-out infinite; }
+.login-twinkle { animation: login-twinkle 4.5s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .login-rise, .login-twinkle { animation: none; }
+  .login-float { animation: none; transform: scale(1.04); }
+}
+
+/* --- Pilih Arketipe --- */
+@keyframes arketipe-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
+
+.arketipe-rise { animation: arketipe-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+.arketipe-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease, ring-color 0.3s ease;
+}
+.arketipe-card:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arketipe-rise { animation: none; }
+  .arketipe-card { transition-duration: 1ms; }
+}
+
+/* --- Beranda --- */
+@keyframes beranda-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+.beranda-rise { animation: beranda-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .beranda-rise { animation: none; }
+}
+
