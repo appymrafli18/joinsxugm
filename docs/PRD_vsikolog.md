@@ -381,5 +381,32 @@ Ini di luar scope AI untuk MVP.
 
 ---
 
+## Adendum (implementasi terkini)
+
+Ditambahkan setelah MVP berjalan — menyesuaikan pembagian kanal:
+
+1. **Website = portal Admin & Psikolog; aplikasi pasien = mobile.**
+   Akses portal diperiksa di server (admin lewat allowlist, psikolog lewat
+   verifikasi `psychologists`). UI pasien di website dihapus; API server tetap
+   dipakai mobile.
+2. **Speech-to-Text di Companion (mobile).** Ucapan pasien ditranskripsikan
+   untuk *mengisi* kotak pesan; pasien memeriksa/mengedit teks sebelum dikirim
+   ke AI. Audio mentah tidak disimpan, dan STT tidak dipakai untuk merekam
+   sesi psikolog.
+3. **Konsultasi dengan psikolog manusia (mobile).**
+   - **Panggilan suara:** pasien melihat **avatar 2D statis** psikolog (gambar
+     yang dapat diganti psikolog dari portal); suara & respons sepenuhnya dari
+     psikolog asli — bukan AI.
+   - **Panggilan video:** menampilkan video psikolog asli; avatar tidak
+     ditampilkan selama sesi.
+   - AI Companion tidak menghasilkan balasan selama sesi manusia; status sesi
+     hanya "tersambung" setelah psikolog benar-benar menerima. Krisis tetap
+     gratis tanpa booking.
+4. **Verifikasi manual STR/SIPP oleh admin** dan toggle on-call psikolog kini
+   berjalan lewat portal web, termasuk acknowledge/escalate/resolve pusat
+   peringatan krisis (menggantikan rancangan endpoint `crisis-ack`).
+
+---
+
 *Dokumen ini acuan fitur dan kebutuhan AI untuk tim. Tech stack, skema
 database, dan API contract disusun terpisah oleh tim masing-masing.*

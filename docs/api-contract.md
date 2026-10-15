@@ -1,13 +1,38 @@
-# API Contract — AnimaCure
+# API Contract — Kokoro Cure
 
-Endpoint di-host di `dashboard/` (Next.js API routes), dipanggil oleh
-`mobile/` (Flutter) lewat HTTP biasa dan oleh `dashboard/` sendiri lewat
-fetch internal. Base URL saat development: `http://localhost:3000`,
-setelah deploy: URL Vercel project kamu.
+Endpoint di-host di app Next.js (`web/app/api/`) dan dipanggil oleh aplikasi
+pasien (`mobile/`, React Native/Expo) lewat HTTP dengan header
+`Authorization: Bearer <supabase access token>`. Base URL saat development:
+`http://localhost:3000` (diatur di mobile via `EXPO_PUBLIC_API_URL`).
 
-> Status: `/api/companion` sudah diimplementasikan di scaffold. Endpoint
-> lain masih rancangan — update bagian "Status" tiap endpoint selesai
-> dibuat.
+> Status (implementasi berjalan): `POST /api/companion` ✅, `POST /api/consent` ✅,
+> `POST /api/quests` ✅, `GET /api/psychologists` ✅, `POST|GET /api/bookings` ✅,
+> `POST /api/screening` ✅, `POST /api/sentiment` ✅, `POST /api/calls/token` ✅,
+> `GET /api/portal/me` ✅, `GET|POST /api/portal/admin` ✅,
+> `GET|POST /api/portal/psikolog` ✅ (termasuk crisis-ack).
+>
+> Catatan arsitektur: web kini **hanya portal Admin/Psikolog** (`/portal`);
+> API di bawah tetap dipakai aplikasi pasien di `mobile/`.
+
+---
+
+## Endpoint yang sudah berjalan (ringkas)
+
+| Endpoint | Fungsi | Catatan |
+|---|---|---|
+| `POST /api/companion` | Balasan AI Companion (DeepSeek, fallback Claude/mock dev) + deteksi krisis | Response: `{reply, flagged, expression, onCall, escalated, crisisContact}`. Menulis `chat_logs`; krisis → `crisis_alerts` (+nickname & kutipan pemicu) + override tier high + **pilih psikolog on-call acak** → `crisisContact` + `patients.assigned_psychologist_id`. Alert pending > 15 menit otomatis di-`escalated` (lazy sweep). Bila provider AI gagal pada pesan krisis, dipakai balasan krisis statis agar alur keselamatan tidak putus |
+| `POST /api/screening` | Simpan jawaban GAD-7 (7 item, 0–3) | Server menghitung skor + tier (`lib/tier.ts`); skor tidak dikembalikan ke klien |
+| `POST /api/consent` | Simpan/cabut persetujuan berbagi data | `patients.data_sharing_consent` + `consent_updated_at` (klien tidak punya grant update) |
+| `POST /api/quests` | `action: start / progress / complete` | Validasi server: timer (`timer_not_done`), laporan sosial (`report_required`), jarak GPS (`distance_required`, `distance_not_reached`); poin ditambah server-side & idempotent |
+| `GET /api/psychologists` | Daftar/detail psikolog terverifikasi | `?id=` untuk detail; klien tidak dapat membaca tabel psychologists langsung (RLS) |
+| `POST /api/bookings` | Buat booking (gate consent, tukar poin) | Constraint DB: `status=pending_payment`, `paid_with=money/points`, `payment_status=unpaid/paid`, `session_mode=video`, 50 menit |
+| `GET /api/bookings` | Daftar sesi pasien + nama panggilan psikolog | Dipakai halaman Perjalanan |
+| `POST /api/sentiment` | Analisis sentimen harian dari chat_logs → `sentiment_logs` | Body opsional `{date}`. Memakai DeepSeek; dipicu otomatis oleh `/api/companion` (best-effort) atau manual/cron. Hasilnya jadi tren di dashboard & mesin tier |
+| `POST /api/calls/token` | Token panggilan LiveKit untuk satu booking | Body `{bookingId}`. Hanya pasien/psikolog pemilik booking (admin boleh). Response `{url, token, mode, psychologist}`; room `sesi-<bookingId>` tanpa PII. 503 bila `LIVEKIT_*` belum diisi |
+| `GET /api/portal/me` | Identitas + peran untuk pengarahan portal | Admin ditentukan allowlist server `ADMIN_EMAILS`; psikolog dari tabel psychologists; pasien dikenali agar diblokir dari portal |
+| `GET|POST /api/portal/admin` | Manajemen pengguna & verifikasi psikolog | GET: daftar psikolog (semua status, + signed URL dokumen) + pasien + email + hitungan krisis. POST `set-verification` (verified/rejected + alasan) — verifikasi manual sesuai PRD |
+| `POST /api/portal/register` | Pendaftaran psikolog (multipart) | `full_name`, `license_number`, `specialization?`, `education?`, `file?` (PDF/gambar ≤5MB). Dokumen diunggah ke bucket **privat** `license-docs` (hanya path tersimpan; admin melihat via signed URL). Baris `psychologists` dibuat berstatus `pending`; 409 bila sudah terdaftar, 403 bila akun pasien |
+| `GET|POST /api/portal/psikolog` | Dashboard & profil psikolog | GET: profil + pasien yang ditangani (dengan sentimen “catatan AI”) + alert krisis + booking. POST: `profile`, `oncall` (toggle on-call), `alert-ack` (acknowledged/escalated/resolved — menggantikan rancangan `/api/crisis-ack`) |
 
 ---
 

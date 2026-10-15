@@ -1,29 +1,40 @@
 import { readJson, removeStorage } from './storage';
 import { supabase } from './supabase';
+import { postJson } from './api';
 import type { ArchetypeId } from '@/constants/colors';
 
 export type { ArchetypeId };
 export const SCREENING_STORAGE_KEY = 'vsikolog:screening-answers';
 export type RouteResult = { ok: true; route: string } | { ok: false; reason: 'not_patient' | 'failed' };
 
-export async function saveScreeningFromStorage() {
+/**
+ * Menyimpan jawaban kuis dari storage ke server (/api/screening) — server
+ * menghitung skor + tier (kolom tier tidak bisa diupdate klien).
+ * Mengembalikan true jika berhasil atau tidak ada yang perlu disimpan.
+ * Kalau gagal, data tetap di storage supaya bisa dicoba lagi.
+ */
+export async function saveScreeningFromStorage(): Promise<boolean> {
   try {
     const parsed = await readJson<unknown>(SCREENING_STORAGE_KEY);
     if (!parsed) return true;
-    if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every((value) => typeof value === 'number' && Number.isFinite(value))) {
+
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length === 0 ||
+      !parsed.every((value) => typeof value === 'number' && Number.isFinite(value))
+    ) {
       await removeStorage(SCREENING_STORAGE_KEY);
       return false;
     }
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) return false;
-    const answers: Record<string, number> = {};
-    parsed.forEach((value, index) => { answers[`q${index + 1}`] = value; });
-    const total = parsed.reduce((sum, value) => sum + value, 0);
-    const { error } = await supabase.from('screening_scores').insert({ patient_id: data.user.id, answers, total });
-    if (error) return false;
+
+    const result = await postJson<{ ok: boolean }>('/api/screening', { answers: parsed });
+    if (!result.ok) return false;
+
     await removeStorage(SCREENING_STORAGE_KEY);
     return true;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 export async function saveArchetype(archetype: ArchetypeId) {
@@ -53,4 +64,17 @@ export async function resolveStartRoute() {
     const result = await resolvePatientRoute();
     return result.ok ? result.route : '/onboarding';
   } catch { return '/onboarding'; }
+}
+
+/**
+ * Simpan persetujuan berbagi data (PRD Bagian 10).
+ * Kolom data_sharing_consent tidak boleh diupdate dari klien (grant DB) → lewat /api/consent.
+ */
+export async function setDataSharingConsent(
+  consent: boolean,
+): Promise<{ ok: true; updatedAt: string } | { ok: false; message: string }> {
+  const result = await postJson<{ consent: boolean; updatedAt: string }>('/api/consent', { consent });
+  return result.ok
+    ? { ok: true, updatedAt: result.data.updatedAt }
+    : { ok: false, message: result.message };
 }

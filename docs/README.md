@@ -9,35 +9,57 @@ triase, protokol krisis, dan roadmap.
 
 ## Arsitektur
 
-**Satu Next.js app (React + Tailwind CSS)** melayani dua sisi pengguna
-sekaligus — bukan lagi Flutter (mobile) + Next.js (dashboard) terpisah
-seperti rencana awal. Satu codebase, satu deployment, satu Tailwind
-config (token warna & font yang sama dipakai di semua halaman).
+Dua klien, satu backend:
 
 ```
-animacure/
-├── docs/            Dokumentasi produk (PRD, design tokens, data riset, dst)
-└── app/             Next.js app — React + Tailwind, FE & BE jadi satu
-    ├── (pasien)/        Rute untuk pasien: onboarding, companion, misi, dst
-    ├── (psikolog)/      Rute untuk psikolog: dashboard, daftar pasien, alert
-    └── api/             API routes (companion, sentiment, dst)
+joinsxugm/
+├── docs/            Dokumentasi produk (PRD, design, schema, API contract)
+├── web/             Next.js — DUA peran:
+│   ├── app/portal/      Portal Admin & Psikolog (satu-satunya UI web)
+│   └── app/api/         API server yang dipakai aplikasi mobile pasien
+└── mobile/          React Native (Expo) — aplikasi pasien
 ```
 
-Backend: **Supabase** (database, auth, storage) — satu project yang
-sama dipakai baik dari sisi pasien maupun psikolog, diakses lewat
-`@supabase/supabase-js`.
+- **Pasien** memakai aplikasi `mobile/` (onboarding, Companion AI + TTS/STT,
+  misi Quest CBT, consent, marketplace psikolog, panggilan suara/video dengan
+  psikolog asli).
+- **Admin & Psikolog** memakai `web/` lewat `/portal` — verifikasi STR/SIPP,
+  profil publik, dashboard pasien, alert krisis, on-call, dan sesi.
+- UI pasien **tidak ada lagi di web**; API server (`web/app/api/*`) tetap
+  dipertahankan karena dipakai mobile.
+- **Panggilan manusia** memakai LiveKit (voice: avatar 2D statis; video:
+  video psikolog asli). AI Companion adalah layanan terpisah.
+
+Backend/data: **Supabase** (database, auth, storage) — satu project yang
+sama dipakai mobile dan portal.
 
 ## Menjalankan
 
 ```
-cd app
+cd web
 npm install
 npm run dev
+node scripts/seed-demo.mjs    # data demo: 4 psikolog + akun admin
 ```
 
-Salin `.env.example` menjadi `.env.local`, isi `NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, dan
-`ANTHROPIC_API_KEY` sebelum menjalankan.
+Isi `web/.env.local` (lihat `.env.example`):
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`, `DEEPSEEK_API_KEY` (AI Companion — server only)
+- `ADMIN_EMAILS` (allowlist admin portal, pisah koma — tambahkan emailmu)
+- `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (opsional; tanpa ini
+  panggilan menampilkan pesan "belum dikonfigurasi")
+
+Login demo portal: `demo.admin@kokoro.test` dan
+`demo.psikolog1..4@kokoro.test` — password `Demo1234!xyz`.
+
+Aplikasi pasien (React Native/Expo) ada di `mobile/` — isi `mobile/.env`
+dengan `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, dan
+`EXPO_PUBLIC_API_URL` (alamat server web di atas), lalu `npx expo start -c`.
+
+> Catatan: panggilan suara/video (LiveKit) dan input suara (STT) memakai
+> modul native — keduanya **butuh development build** (`npx expo run:ios` /
+> `expo run:android` atau EAS build), tidak bisa di Expo Go. Sisa aplikasi
+> tetap berjalan normal di Expo Go.
 
 ## Dokumen Penting
 

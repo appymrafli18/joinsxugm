@@ -20,6 +20,7 @@ import { FONT, RADIUS, SHADOW } from '@/constants/theme';
 import {
   ANSWER_OPTIONS,
   ONBOARDING_QUESTIONS,
+  SCREENING_TIMEFRAME_LABEL,
   type OnboardingQuestion,
 } from '@/lib/questions';
 import { SCREENING_STORAGE_KEY } from '@/lib/profile';
@@ -232,7 +233,7 @@ export default function OnboardingScreen() {
         ]}
       >
         <Image
-          source={images[question.archetype as keyof typeof images]}
+          source={images[(question.archetype === 'companion' ? 'guardian' : question.archetype) as keyof typeof images]}
           alt={theme.imageAlt}
           contentFit="cover"
           contentPosition="top"
@@ -283,6 +284,8 @@ export default function OnboardingScreen() {
         >
           Pertanyaan {step + 1} dari {ONBOARDING_QUESTIONS.length}
         </Text>
+
+        <Text style={styles.timeframe}>{SCREENING_TIMEFRAME_LABEL}</Text>
 
         <View style={styles.questionArea}>
           <View style={styles.questionWrap}>
@@ -363,6 +366,15 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     fontFamily: FONT,
     fontSize: 12,
+  },
+  timeframe: {
+    marginTop: 10,
+    fontFamily: FONT,
+    fontSize: 11,
+    lineHeight: 17,
+    color: 'rgba(59,46,74,0.6)',
+    textAlign: 'center',
+    paddingHorizontal: 12,
   },
   questionArea: {
     flex: 1,

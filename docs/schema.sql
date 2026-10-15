@@ -72,6 +72,7 @@ create table quests (
   patient_id uuid not null references patients(id),
   category text not null
     check (category in ('indoor_ringan', 'outdoor_ringan', 'outdoor_sedang', 'sosial')),
+  level int not null default 1,
   title text not null,
   points int not null default 10,
   status text not null default 'active' check (status in ('active', 'completed', 'skipped')),
@@ -79,18 +80,60 @@ create table quests (
   social_report text,
   feeling_input text,
   completed_at timestamptz,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  progress_value int not null default 0,
+  target_value int not null default 1,
+  unit text
 );
 
+-- CATATAN (ditemukan dari DB cloud, tidak ada di file ini sebelumnya):
+-- 1. DB produksi punya constraint `quests_feeling_input_check` yang SANGAT
+--    ketat — dari 58 kandidat kata hanya 'biasa' yang diterima (sisa
+--    placeholder). Server /api/quests sudah fallback menyimpan perasaan ke
+--    social_report. Untuk memakai kolom feeling_input sesuai desain chips
+--    (lega/senang/cemas/biasa saja/lelah), jalankan di Supabase SQL Editor:
+--
+--      alter table quests drop constraint quests_feeling_input_check;
+--      alter table quests add constraint quests_feeling_input_check
+--        check (feeling_input is null
+--               or feeling_input in ('lega', 'senang', 'cemas', 'biasa saja', 'lelah'));
+--
+-- 2. Hak akses DB cloud (di luar RLS): role `authenticated` hanya punya
+--    GRANT SELECT pada quests; INSERT/UPDATE quests serta update patients
+--    .total_points / .data_sharing_consent HANYA lewat server (service
+--    role) sebagai anti-cheat poin. Klien boleh update patients: nickname,
+--    archetype_id, emergency_contact_*.
+-- 3. Kolom nyata vs file ini sebelumnya: patients punya nickname (NOT NULL)
+--    + emergency_contact_name/phone; bookings pakai paid_with (bukan
+--    payment_method) + points_used, duration_minutes, session_mode,
+--    payment_status, meeting_url, patient_note.
+
+-- CATATAN: kolom & constraint nyata di DB cloud (hasil probe):
+--   status          : 'pending_payment' (default) | 'confirmed' | 'completed' | 'cancelled'
+--   paid_with       : 'money' (default) | 'points'
+--   payment_status  : 'unpaid' (default) | 'paid' | 'failed'
+--   session_mode    : 'voice' (default) | 'video'
+--   duration_minutes: default 50
+--   payment_method/payment_order_id/paid_at/meeting_url/patient_note/points_used
+--   juga ada. Booking dibuat lewat server (/api/bookings) karena klien tidak
+--   punya GRANT INSERT; gate consent wajib sebelum booking.
 create table bookings (
   id uuid primary key default gen_random_uuid(),
   patient_id uuid not null references patients(id),
   psychologist_id uuid not null references psychologists(id),
   scheduled_at timestamptz not null,
-  status text not null default 'pending'
-    check (status in ('pending', 'confirmed', 'completed', 'cancelled')),
-  payment_method text check (payment_method in ('transfer', 'qris', 'points_redeem')),
-  price numeric,
+  status text not null default 'pending_payment'
+    check (status in ('pending_payment', 'confirmed', 'completed', 'cancelled')),
+  paid_with text default 'money' check (paid_with in ('money', 'points')),
+  payment_status text default 'unpaid' check (payment_status in ('unpaid', 'paid', 'failed')),
+  session_mode text default 'voice' check (session_mode in ('voice', 'video')),
+  duration_minutes int default 50,
+  price int default 0,
+  points_used int default 0,
+  payment_order_id text,
+  paid_at timestamptz,
+  meeting_url text,
+  patient_note text,
   created_at timestamptz not null default now()
 );
 

@@ -42,6 +42,14 @@ const FILES = [
   'misi/asset_top-bg.svg',
 ];
 
+/** Override lebar per file — arketipe di-render lebih besar untuk avatar Companion. */
+const BASE_OVERRIDES = {
+  'pilih-arkatipe/arkatipe_guardian.svg': 360,
+  'pilih-arkatipe/arkatipe_healer.svg': 360,
+  'pilih-arkatipe/arkatipe_scholar.svg': 360,
+  'pilih-arkatipe/arkatipe_companion.svg': 360,
+};
+
 fs.mkdirSync(OUT, { recursive: true });
 
 for (const rel of FILES) {
@@ -54,7 +62,7 @@ for (const rel of FILES) {
     console.error(`✗ ${rel}: width/height tidak ditemukan, lewati`);
     continue;
   }
-  const baseWidth = Math.round(Number(match[1]));
+  const baseWidth = Math.round(Number(BASE_OVERRIDES[rel] ?? match[1]));
 
   const name = path.basename(rel, '.svg');
   for (const [suffix, scale] of [

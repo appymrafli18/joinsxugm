@@ -8,9 +8,11 @@
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.kokorocure.app"
     },
     "android": {
+      "package": "com.kokorocure.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -26,11 +28,33 @@
     "plugins": [
       "expo-router",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Kokoro Cure memakai lokasimu untuk melacak jarak misi jalan kaki (outdoor)."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#FBF8FD",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Kokoro Cure memakai mikrofon untuk mengubah ucapanmu menjadi teks di Companion.",
+          "speechRecognitionPermission": "Kokoro Cure memakai pengenalan suara untuk menuliskan ucapanmu menjadi teks."
+        }
+      ],
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Kokoro Cure memakai mikrofon untuk panggilan dengan psikolog dan input suara di Companion.",
+          "recordAudioAndroid": true
         }
       ]
     ],
