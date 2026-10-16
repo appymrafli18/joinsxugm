@@ -73,6 +73,7 @@ type Body = {
   psychologistId?: unknown;
   scheduledAt?: unknown;
   paymentMethod?: unknown;
+  sessionMode?: unknown;
   note?: unknown;
 };
 
@@ -91,6 +92,7 @@ export async function POST(request: Request): Promise<Response> {
   const psychologistId = typeof body.psychologistId === 'string' ? body.psychologistId : '';
   const scheduledAt = typeof body.scheduledAt === 'string' ? body.scheduledAt : '';
   const paymentMethod = body.paymentMethod;
+  const sessionMode = body.sessionMode === 'voice' ? 'voice' : 'video';
   const note = typeof body.note === 'string' ? body.note.trim().slice(0, 500) : '';
 
   if (
@@ -164,7 +166,7 @@ export async function POST(request: Request): Promise<Response> {
       status: isPoints ? 'confirmed' : 'pending_payment',
       paid_with: isPoints ? 'points' : 'money',
       payment_status: isPoints ? 'paid' : 'unpaid',
-      session_mode: 'video',
+      session_mode: sessionMode,
       duration_minutes: SESSION_DURATION_MINUTES,
       price: isPoints ? 0 : price,
       points_used: pointsUsed,

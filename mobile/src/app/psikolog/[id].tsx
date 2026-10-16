@@ -17,6 +17,7 @@ import { CheckIcon, ChevronLeftIcon, HeartHandIcon, LockIcon, StarIcon } from '@
 import { Spinner } from '@/components/ui/Spinner';
 import { COLORS } from '@/constants/colors';
 import { FONT, RADIUS, SHADOW } from '@/constants/theme';
+import { postJson } from '@/lib/api';
 import {
   createBooking,
   fetchPsychologist,
@@ -64,10 +65,27 @@ export default function PsychologistDetailScreen() {
   const [dateKey, setDateKey] = useState<string>(() => buildDateOptions()[0].iso);
   const [timeKey, setTimeKey] = useState<string | null>(null);
   const [method, setMethod] = useState<PaymentMethod | null>(null);
+  const [sessionMode, setSessionMode] = useState<'voice' | 'video'>('video');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState<Booking | null>(null);
+  const [openingCrisis, setOpeningCrisis] = useState(false);
+  const [crisisError, setCrisisError] = useState<string | null>(null);
+
+  /* Buka ruang bantuan krisis (chat + panggilan) — gratis, tanpa booking manual. */
+  async function openCrisisRoom() {
+    if (openingCrisis) return;
+    setOpeningCrisis(true);
+    setCrisisError(null);
+    const result = await postJson<{ bookingId: string }>('/api/session/crisis', {});
+    setOpeningCrisis(false);
+    if (!result.ok) {
+      setCrisisError(result.message);
+      return;
+    }
+    router.push(`/sesi/${result.data.bookingId}` as never);
+  }
 
   /* Muat data sesi + psikolog */
   useEffect(() => {
@@ -132,6 +150,7 @@ export default function PsychologistDetailScreen() {
       psychologistId: psychologist.id,
       scheduledAt,
       paymentMethod: method,
+      sessionMode,
       note: note.trim() || undefined,
     });
     setSubmitting(false);
@@ -225,8 +244,18 @@ export default function PsychologistDetailScreen() {
           </View>
         </View>
 
-        <Pressable onPress={() => router.back()} style={styles.primaryButton}>
-          <Text style={styles.primaryButtonText}>Kembali ke Companion</Text>
+        {crisisError ? <Text style={styles.formError}>{crisisError}</Text> : null}
+        <Pressable
+          onPress={openCrisisRoom}
+          disabled={openingCrisis}
+          style={[styles.primaryButton, openingCrisis && styles.buttonDisabled]}
+        >
+          <Text style={styles.primaryButtonText}>
+            {openingCrisis ? 'Membuka ruang bantuan...' : 'Buka Ruang Bantuan (Chat & Panggilan)'}
+          </Text>
+        </Pressable>
+        <Pressable onPress={() => router.back()} style={styles.secondaryButton}>
+          <Text style={styles.secondaryButtonText}>Kembali ke Companion</Text>
         </Pressable>
       </ScrollView>
     );
@@ -255,7 +284,7 @@ export default function PsychologistDetailScreen() {
             </Text>
             <Text style={styles.successRow}>
               <Text style={styles.successLabel}>Durasi · </Text>
-              {success.duration_minutes} menit (video)
+              {success.duration_minutes} menit ({success.session_mode === 'voice' ? 'suara' : 'video'})
             </Text>
             <Text style={styles.successRow}>
               <Text style={styles.successLabel}>Biaya · </Text>
@@ -357,6 +386,23 @@ export default function PsychologistDetailScreen() {
                   </Pressable>
                 );
               })}
+            </View>
+
+            {/* Mode sesi */}
+            <Text style={styles.sectionTitle}>Mode sesi</Text>
+            <View style={styles.chipRowWrap}>
+              <Pressable
+                onPress={() => setSessionMode('video')}
+                style={[styles.chip, sessionMode === 'video' && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, sessionMode === 'video' && styles.chipTextActive]}>Video</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setSessionMode('voice')}
+                style={[styles.chip, sessionMode === 'voice' && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, sessionMode === 'voice' && styles.chipTextActive]}>Suara (avatar)</Text>
+              </Pressable>
             </View>
 
             {/* Pembayaran */}

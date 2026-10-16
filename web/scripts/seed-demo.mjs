@@ -9,7 +9,7 @@
  * full_name dan tampil sebagai baris kedua di aplikasi pasien.
  *
  * Akun demo (untuk login psikolog di masa depan):
- *   email    : demo.psikolog1..4@kokoro.test
+ *   email    : demo.psikolog1..4@vsikolog.test
  *   password : Demo1234!xyz
  */
 import { readFileSync } from 'node:fs';
@@ -64,7 +64,7 @@ async function api(path, method = 'GET', body) {
 
 const PSYCHOLOGISTS = [
   {
-    email: 'demo.psikolog1@kokoro.test',
+    email: 'demo.psikolog1@vsikolog.test',
     full_name: 'Aya Rahmawati, M.Psi.',
     license_number: 'STR-DEMO-0001',
     nickname: 'Ayaka',
@@ -74,7 +74,7 @@ const PSYCHOLOGISTS = [
     is_on_call: true,
   },
   {
-    email: 'demo.psikolog2@kokoro.test',
+    email: 'demo.psikolog2@vsikolog.test',
     full_name: 'Bima Nugraha, M.Psi.',
     license_number: 'STR-DEMO-0002',
     nickname: 'Kaze',
@@ -84,7 +84,7 @@ const PSYCHOLOGISTS = [
     is_on_call: true,
   },
   {
-    email: 'demo.psikolog3@kokoro.test',
+    email: 'demo.psikolog3@vsikolog.test',
     full_name: 'Cinta Larasati, M.Psi.',
     license_number: 'STR-DEMO-0003',
     nickname: 'Cia',
@@ -94,7 +94,7 @@ const PSYCHOLOGISTS = [
     is_on_call: false,
   },
   {
-    email: 'demo.psikolog4@kokoro.test',
+    email: 'demo.psikolog4@vsikolog.test',
     full_name: 'Damar Prasetyo, M.Psi.',
     license_number: 'STR-DEMO-0004',
     nickname: 'Yoru',
@@ -133,8 +133,10 @@ async function ensureUser(email) {
 
 let created = 0;
 let updated = 0;
+const psyId = {};
 for (const psy of PSYCHOLOGISTS) {
   const id = await ensureUser(psy.email);
+  psyId[psy.email] = id;
   const row = {
     id,
     full_name: psy.full_name,
@@ -159,11 +161,81 @@ for (const psy of PSYCHOLOGISTS) {
 }
 
 /* Akun admin demo — akses portal lewat allowlist ADMIN_EMAILS di web/.env.local. */
-const ADMIN = { email: 'demo.admin@kokoro.test' };
+const ADMIN = { email: 'demo.admin@vsikolog.test' };
 await ensureUser(ADMIN.email);
 console.log(`✓ akun    ${ADMIN.email} (admin portal — sudah ada di ADMIN_EMAILS)`);
 
 console.log(`\nSelesai: ${created} baru, ${updated} diperbarui.`);
-console.log('Login demo psikolog: demo.psikolog1..4@kokoro.test / Demo1234!xyz');
-console.log('Login demo admin  : demo.admin@kokoro.test / Demo1234!xyz');
+console.log('Login demo psikolog: demo.psikolog1..4@vsikolog.test / Demo1234!xyz');
+console.log('Login demo admin  : demo.admin@vsikolog.test / Demo1234!xyz');
 console.log('On-call: Ayaka & Kaze (dipakai untuk alur krisis).');
+
+/* =====================================================================
+ * Akun PASIEN demo + booking contoh — biar bisa langsung klik-klik demo
+ * (chat sesi, panggilan, konfirmasi booking) tanpa setup manual.
+ * ===================================================================== */
+const PATIENT = { email: 'demo.pasien@vsikolog.test', nickname: 'Vsi' };
+
+let patientId = await findUserByEmail(PATIENT.email);
+if (!patientId) {
+  const { status, data } = await api('/auth/v1/admin/users', 'POST', {
+    email: PATIENT.email,
+    password: 'Demo1234!xyz',
+    email_confirm: true,
+    user_metadata: { nickname: PATIENT.nickname },
+  });
+  if (status >= 300 || !data?.id) {
+    throw new Error(`gagal membuat user ${PATIENT.email}: ${status} ${JSON.stringify(data)?.slice(0, 160)}`);
+  }
+  patientId = data.id;
+  console.log(`✓ akun    ${PATIENT.email} (pasien demo)`);
+} else {
+  console.log(`↻ akun    ${PATIENT.email} (pasien demo — sudah ada)`);
+}
+
+/* Baris patients: trigger sign-up mungkin sudah membuatnya; pastikan lengkap. */
+const nowIso = new Date().toISOString();
+const patientEnsured = {
+  nickname: PATIENT.nickname,
+  archetype_id: 'guardian',
+  tier: 'low',
+  total_points: 450, // cukup untuk 1 sesi gratis (400) + sisa
+  data_sharing_consent: true,
+  consent_updated_at: nowIso,
+  emergency_contact_name: 'Ibu',
+  emergency_contact_phone: '081200000000',
+};
+const { data: existingPatient } = await api(`/rest/v1/patients?id=eq.${patientId}&select=id`);
+if (Array.isArray(existingPatient) && existingPatient.length > 0) {
+  await api(`/rest/v1/patients?id=eq.${patientId}`, 'PATCH', patientEnsured);
+  console.log('↻ pasien  profil pasien demo diperbarui (poin, consent, kontak darurat)');
+} else {
+  await api('/rest/v1/patients', 'POST', { id: patientId, ...patientEnsured });
+  console.log('✓ pasien  profil pasien demo dibuat');
+}
+
+/* Booking contoh dengan Ayaka (psikolog1). Dibuat hanya bila belum ada. */
+const AYAKA = psyId['demo.psikolog1@vsikolog.test'];
+const { data: existingBookings } = await api(`/rest/v1/bookings?patient_id=eq.${patientId}&select=id`);
+if (!(Array.isArray(existingBookings) && existingBookings.length > 0) && AYAKA) {
+  const at = (daysAhead, hour) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    d.setHours(hour, 0, 0, 0);
+    return d.toISOString();
+  };
+  const BOOKINGS = [
+    { scheduled_at: at(1, 10), status: 'confirmed', paid_with: 'money', payment_status: 'paid', session_mode: 'video', duration_minutes: 50, price: 150000, points_used: 0, patient_note: 'Sesi demo video (siap dibuka)' },
+    { scheduled_at: at(2, 13), status: 'confirmed', paid_with: 'money', payment_status: 'paid', session_mode: 'voice', duration_minutes: 50, price: 150000, points_used: 0, patient_note: 'Sesi demo suara (avatar)' },
+    { scheduled_at: at(3, 16), status: 'pending_payment', paid_with: 'money', payment_status: 'unpaid', session_mode: 'video', duration_minutes: 50, price: 150000, points_used: 0, patient_note: 'Demo tombol Konfirmasi' },
+    { scheduled_at: at(-2, 19), status: 'completed', paid_with: 'money', payment_status: 'paid', session_mode: 'video', duration_minutes: 50, price: 150000, points_used: 0, patient_note: null },
+  ];
+  for (const b of BOOKINGS) {
+    await api('/rest/v1/bookings', 'POST', { patient_id: patientId, psychologist_id: AYAKA, ...b });
+  }
+  console.log(`✓ booking 4 sesi demo dibuat (Ayaka) — 2 siap dibuka, 1 menunggu konfirmasi, 1 selesai`);
+} else {
+  console.log('↻ booking sudah ada — dilewati (hapus dulu bila ingin seed ulang)');
+}
+
+console.log('\nLogin demo pasien : demo.pasien@vsikolog.test / Demo1234!xyz');

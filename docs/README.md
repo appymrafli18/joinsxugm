@@ -1,10 +1,10 @@
-# Kokoro Cure (sebelumnya AnimaCure)
+# Vsikolog (dahulu AnimaCure → Kokoro Cure)
 
 Platform kesehatan mental yang menghubungkan psikolog berlisensi dengan
 pengguna melalui avatar VTuber/anime dan AI di latar belakang —
 dikembangkan untuk Hackathon Healthcare FMIPA UGM.
 
-Lihat `docs/PRD_AnimaCure.md` untuk detail lengkap produk, fitur, sistem
+Lihat `docs/PRD_vsikolog.md` untuk detail lengkap produk, fitur, sistem
 triase, protokol krisis, dan roadmap.
 
 ## Arsitektur
@@ -39,7 +39,8 @@ sama dipakai mobile dan portal.
 cd web
 npm install
 npm run dev
-node scripts/seed-demo.mjs    # data demo: 4 psikolog + akun admin
+node scripts/seed-demo.mjs    # data demo: 4 psikolog + pasien + 4 booking + akun admin
+node scripts/reset-seed.mjs   # RESET total (hapus semua baris → 0) lalu seed ulang
 ```
 
 Isi `web/.env.local` (lihat `.env.example`):
@@ -49,8 +50,8 @@ Isi `web/.env.local` (lihat `.env.example`):
 - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (opsional; tanpa ini
   panggilan menampilkan pesan "belum dikonfigurasi")
 
-Login demo portal: `demo.admin@kokoro.test` dan
-`demo.psikolog1..4@kokoro.test` — password `Demo1234!xyz`.
+Login demo portal: `demo.admin@vsikolog.test` dan
+`demo.psikolog1..4@vsikolog.test` — password `Demo1234!xyz`.
 
 Aplikasi pasien (React Native/Expo) ada di `mobile/` — isi `mobile/.env`
 dengan `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, dan
@@ -65,7 +66,7 @@ dengan `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, dan
 
 | Dokumen | Lokasi | Isi |
 |---|---|---|
-| PRD | `docs/PRD_AnimaCure.md` | Fitur lengkap, model bisnis, sistem triase, protokol krisis, roadmap |
+| PRD | `docs/PRD_vsikolog.md` | Fitur lengkap, model bisnis, sistem triase, protokol krisis, roadmap |
 | Design tokens | `docs/design-tokens.md` | Palet warna ungu-VTuber & font — perlu diupdate dari versi cream lama |
 | Database schema | `docs/database-schema.md` | Struktur tabel Supabase |
 | API contract | `docs/api-contract.md` | Daftar endpoint & format request/response |
@@ -77,5 +78,4 @@ dengan `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, dan
   psikolog) — sudah digantikan sepenuhnya dengan satu Next.js app
   per keputusan tim terbaru. Kode Flutter lama (jika masih ada di
   riwayat chat/file lama) sudah tidak dipakai.
-- Nama produk sempat berubah dari "AnimaCure" ke "Kokoro Cure" seiring
-  perubahan arah desain (dari palet cream-peach ke ungu-VTuber).
+- Nama produk berevolusi: "AnimaCure" → "Kokoro Cure" → **"Vsikolog"** (nama final), seiring perubahan arah desain (dari palet cream-peach ke ungu-VTuber).

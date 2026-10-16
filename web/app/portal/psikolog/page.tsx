@@ -29,6 +29,7 @@ type PatientRow = {
   assigned_psychologist_id: string | null;
   created_at: string;
   latestSentiment: { stabil: number; cemas: number; date: string } | null;
+  latestSummary: { summary: string; date: string } | null;
 };
 
 type AlertRow = {
@@ -53,6 +54,7 @@ type BookingRow = {
   points_used: number;
   duration_minutes: number;
   patient_note: string | null;
+  patient_joined_at?: string | null;
 };
 
 type DashboardData = {
@@ -73,6 +75,11 @@ const STATUS_STYLE: Record<string, string> = {
   resolved: "bg-sage/20 text-[#4F7A57]",
 };
 
+/* Auto-refresh dashboard + batas SLA alert krisis (menit). Harus selaras
+   dengan CRISIS_SLA_MINUTES di server; hanya untuk penanda visual. */
+const REFRESH_MS = 30_000;
+const CRISIS_SLA_MINUTES = 15;
+
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-xl2 bg-white p-4 shadow-float">
@@ -90,12 +97,27 @@ function formatTime(iso: string): string {
   }
 }
 
+function ageMinutes(iso: string, now: number): number {
+  const parsed = Date.parse(iso);
+  if (Number.isNaN(parsed)) return 0;
+  return Math.max(0, Math.round((now - parsed) / 60_000));
+}
+
+function ageLabel(minutes: number): string {
+  if (minutes < 1) return "baru saja";
+  if (minutes < 60) return `${minutes} menit lalu`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} jam lalu`;
+  return `${Math.floor(hours / 24)} hari lalu`;
+}
+
 export default function PortalPsikologPage() {
   const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   /* Form profil */
   const [nickname, setNickname] = useState("");
@@ -130,6 +152,24 @@ export default function PortalPsikologPage() {
       active = false;
     };
   }, [router]);
+
+  /* Auto-refresh: tarik ulang alert/pasien/booking tiap 30 detik agar alert
+     krisis baru muncul tanpa reload. Profil dipertahankan agar tidak menimpa
+     isian form yang sedang diedit. Timer `now` menggerakkan label umur alert. */
+  useEffect(() => {
+    const poll = setInterval(() => {
+      void portalFetch<DashboardData>("/api/portal/psikolog").then((result) => {
+        if (!result.ok) return;
+        const payload = result.data;
+        setData((current) => (current ? { ...payload, profile: current.profile } : payload));
+      });
+    }, REFRESH_MS);
+    const clock = setInterval(() => setNow(Date.now()), REFRESH_MS);
+    return () => {
+      clearInterval(poll);
+      clearInterval(clock);
+    };
+  }, []);
 
   const verified = data?.profile.verification_status === "verified";
 
@@ -193,6 +233,40 @@ export default function PortalPsikologPage() {
     }
     setData((current) =>
       current ? { ...current, alerts: current.alerts.map((a) => (a.id === alert.id ? { ...a, status } : a)) } : current,
+    );
+  }
+
+  async function handleBooking(booking: BookingRow, status: "confirmed" | "completed" | "cancelled") {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const result = await portalFetch<{ booking: BookingRow }>("/api/portal/psikolog", {
+      method: "POST",
+      body: { action: "booking-status", bookingId: booking.id, status },
+    });
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            bookings: current.bookings.map((b) =>
+              b.id === booking.id
+                ? { ...b, status: result.data.booking.status, payment_status: result.data.booking.payment_status }
+                : b,
+            ),
+          }
+        : current,
+    );
+    setNotice(
+      status === "confirmed"
+        ? "Sesi dikonfirmasi — pasien & kamu bisa membuka ruang sesi."
+        : status === "completed"
+          ? "Sesi ditandai selesai."
+          : "Sesi dibatalkan.",
     );
   }
 
@@ -346,30 +420,43 @@ export default function PortalPsikologPage() {
       {/* Pusat peringatan krisis */}
       <section className="mt-6">
         <h2 className="font-display text-lg">Pusat Peringatan Krisis</h2>
-        <p className="mt-1 text-[12px] text-text/60">Ditampilkan berdasarkan waktu terbaru. Tanggapi sesegera mungkin.</p>
+        <p className="mt-1 text-[12px] text-text/60">Diperbarui otomatis tiap 30 detik. Alert yang lewat {CRISIS_SLA_MINUTES} menit tanpa ditanggapi akan di-eskalasi otomatis ke seluruh psikolog terverifikasi.</p>
         <div className="mt-3 flex flex-col gap-3">
-          {data.alerts.map((alert) => (
-            <article key={alert.id} className="rounded-xl2 bg-white p-4 shadow-float">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-display text-[14px]">{alert.patient_nickname ?? "Pasien"}</p>
-                  <p className="mt-1 text-[11px] text-text/60">{formatTime(alert.created_at)}</p>
-                  {alert.trigger_excerpt && (
-                    <p className="mt-2 rounded-xl2 bg-base px-3 py-2 text-[12px] italic text-text/80">“{alert.trigger_excerpt}”</p>
-                  )}
+          {data.alerts.map((alert) => {
+            const minutes = ageMinutes(alert.created_at, now);
+            const overdue = alert.status === "pending" && minutes >= CRISIS_SLA_MINUTES;
+            return (
+              <article key={alert.id} className="rounded-xl2 bg-white p-4 shadow-float">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-display text-[14px]">{alert.patient_nickname ?? "Pasien"}</p>
+                    <p className="mt-1 text-[11px] text-text/60">
+                      {formatTime(alert.created_at)} · {ageLabel(minutes)}
+                    </p>
+                    {alert.trigger_excerpt && (
+                      <p className="mt-2 rounded-xl2 bg-base px-3 py-2 text-[12px] italic text-text/80">“{alert.trigger_excerpt}”</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`rounded-full px-3 py-1 text-[10px] ${STATUS_STYLE[alert.status] ?? ""}`}>{alert.status}</span>
+                    {overdue && (
+                      <span className="rounded-full bg-terracotta/15 px-2 py-0.5 text-[10px] text-terracotta">
+                        lewat SLA {CRISIS_SLA_MINUTES} mnt
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-[10px] ${STATUS_STYLE[alert.status] ?? ""}`}>{alert.status}</span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" disabled={busy || alert.status !== "pending"} onClick={() => void handleAlert(alert, "acknowledged")}
-                  className={`h-9 rounded-full bg-cta px-4 text-[12px] text-white disabled:opacity-40 ${FOCUS_RING}`}>Tanggapi</button>
-                <button type="button" disabled={busy || alert.status === "resolved"} onClick={() => void handleAlert(alert, "escalated")}
-                  className={`h-9 rounded-full bg-terracotta/10 px-4 text-[12px] text-terracotta ring-1 ring-terracotta/30 disabled:opacity-40 ${FOCUS_RING}`}>Eskalasi</button>
-                <button type="button" disabled={busy || alert.status === "resolved"} onClick={() => void handleAlert(alert, "resolved")}
-                  className={`h-9 rounded-full bg-white px-4 text-[12px] ring-1 ring-sage/40 disabled:opacity-40 ${FOCUS_RING}`}>Selesaikan</button>
-              </div>
-            </article>
-          ))}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" disabled={busy || alert.status !== "pending"} onClick={() => void handleAlert(alert, "acknowledged")}
+                    className={`h-9 rounded-full bg-cta px-4 text-[12px] text-white disabled:opacity-40 ${FOCUS_RING}`}>Tanggapi</button>
+                  <button type="button" disabled={busy || alert.status === "resolved"} onClick={() => void handleAlert(alert, "escalated")}
+                    className={`h-9 rounded-full bg-terracotta/10 px-4 text-[12px] text-terracotta ring-1 ring-terracotta/30 disabled:opacity-40 ${FOCUS_RING}`}>Eskalasi</button>
+                  <button type="button" disabled={busy || alert.status === "resolved"} onClick={() => void handleAlert(alert, "resolved")}
+                    className={`h-9 rounded-full bg-white px-4 text-[12px] ring-1 ring-sage/40 disabled:opacity-40 ${FOCUS_RING}`}>Selesaikan</button>
+                </div>
+              </article>
+            );
+          })}
           {data.alerts.length === 0 && <p className="text-[12px] text-text/60">Tidak ada alert saat ini. Aman. 🌿</p>}
         </div>
       </section>
@@ -378,10 +465,10 @@ export default function PortalPsikologPage() {
       <section className="mt-8">
         <h2 className="font-display text-lg">Pasien yang Ditangani</h2>
         <p className="mt-1 text-[12px] text-text/60">
-          Ringkasan sentimen berlabel <span className="italic">catatan AI — referensi awal</span>, bukan diagnosis. Selalu lakukan asesmen sendiri.
+          Ringkasan &amp; sentimen berlabel <span className="italic">catatan AI — referensi awal</span>, bukan diagnosis. Selalu lakukan asesmen sendiri.
         </p>
         <div className="mt-3 overflow-x-auto rounded-xl2 bg-white shadow-float">
-          <table className="w-full min-w-[720px] text-left text-[12px]">
+          <table className="w-full min-w-[960px] text-left text-[12px]">
             <thead>
               <tr className="border-b border-guardian/10 text-[11px] text-text/60">
                 <th className="px-4 py-3">Nama panggilan</th>
@@ -389,6 +476,7 @@ export default function PortalPsikologPage() {
                 <th className="px-4 py-3">Tier</th>
                 <th className="px-4 py-3">Consent</th>
                 <th className="px-4 py-3">Sentimen terbaru (AI)</th>
+                <th className="px-4 py-3">Ringkasan AI (referensi awal)</th>
               </tr>
             </thead>
             <tbody>
@@ -405,11 +493,25 @@ export default function PortalPsikologPage() {
                         ? "belum ada data"
                         : "menunggu consent"}
                   </td>
+                  <td className="px-4 py-3 align-top">
+                    <p className="max-w-[360px] text-[11px] leading-snug text-text/80">
+                      {p.latestSummary
+                        ? p.latestSummary.summary
+                        : p.data_sharing_consent
+                          ? "Ringkasan belum tersedia (butuh ≥3 pesan hari ini)."
+                          : "Menunggu consent pasien."}
+                    </p>
+                    {p.latestSummary && (
+                      <p className="mt-1 text-[10px] italic text-text/40">
+                        catatan AI — referensi awal, bukan diagnosis · {p.latestSummary.date}
+                      </p>
+                    )}
+                  </td>
                 </tr>
               ))}
               {data.patients.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-4 text-text/60">Belum ada pasien yang ditugaskan.</td>
+                  <td colSpan={6} className="px-4 py-4 text-text/60">Belum ada pasien yang ditugaskan.</td>
                 </tr>
               )}
             </tbody>
@@ -430,12 +532,20 @@ export default function PortalPsikologPage() {
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Bayar</th>
                 <th className="px-4 py-3">Catatan pasien</th>
+                <th className="px-4 py-3">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {data.bookings.map((b) => (
                 <tr key={b.id} className="border-b border-guardian/5 last:border-0">
-                  <td className="px-4 py-3">{b.patient_nickname ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <span className="flex items-center gap-2">
+                      {b.patient_nickname ?? "—"}
+                      {b.patient_joined_at && b.status !== "completed" && b.status !== "cancelled" && (
+                        <span className="rounded-full bg-sage/20 px-2 py-0.5 text-[10px] text-[#4F7A57]">● menunggu</span>
+                      )}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">{formatTime(b.scheduled_at)}</td>
                   <td className="px-4 py-3">{b.session_mode} · {b.duration_minutes} mnt</td>
                   <td className="px-4 py-3">{b.status}</td>
@@ -443,11 +553,34 @@ export default function PortalPsikologPage() {
                     {b.points_used > 0 ? `${b.points_used} poin` : `Rp${(b.price ?? 0).toLocaleString("id-ID")} · ${b.payment_status}`}
                   </td>
                   <td className="px-4 py-3 text-text/70">{b.patient_note ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      {b.status === "pending_payment" && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void handleBooking(b, "confirmed")}
+                          className={`h-8 rounded-full bg-cta px-3 text-[11px] text-white disabled:opacity-40 ${FOCUS_RING}`}
+                        >
+                          Konfirmasi
+                        </button>
+                      )}
+                      {b.status !== "cancelled" && (
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/portal/sesi/${b.id}`)}
+                          className={`h-8 rounded-full bg-guardian-card px-3 text-[11px] text-[#6E4FB5] ${FOCUS_RING}`}
+                        >
+                          Buka Sesi
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
               {data.bookings.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-4 text-text/60">Belum ada booking.</td>
+                  <td colSpan={7} className="px-4 py-4 text-text/60">Belum ada booking.</td>
                 </tr>
               )}
             </tbody>

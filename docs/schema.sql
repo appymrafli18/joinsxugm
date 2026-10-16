@@ -64,6 +64,8 @@ create table crisis_alerts (
   status text not null default 'pending'
     check (status in ('pending', 'acknowledged', 'escalated', 'resolved')),
   acknowledged_by uuid references psychologists(id),
+  escalated_at timestamptz,
+  notified_psychologist_ids uuid[],
   created_at timestamptz not null default now()
 );
 
@@ -194,3 +196,88 @@ create policy "crisis_alerts_update_on_call" on crisis_alerts
 
 create policy "bookings_all_involved" on bookings
   for all using (auth.uid() = patient_id or auth.uid() = psychologist_id);
+
+-- =====================================================================
+-- APPENDIX — Notifikasi & audit eskalasi krisis (16 Okt 2026)
+-- =====================================================================
+-- Alur: krisis → alert `pending` + email ke psikolog on-call; alert yang
+-- lewat SLA (CRISIS_SLA_MINUTES, default 15) → `escalated` + email ke semua
+-- psikolog terverifikasi. Lihat web/lib/crisisService.ts dan docs/cron.sql.
+--
+-- Untuk DB yang sudah ter-provision (kolom belum ada), jalankan idempotent:
+alter table crisis_alerts add column if not exists escalated_at timestamptz;
+alter table crisis_alerts add column if not exists notified_psychologist_ids uuid[];
+
+-- Catatan: kode (crisisService) menulis `escalated_at` best-effort — bila
+-- kolom belum ada, eskalasi TETAP berjalan, hanya audit yang dilewati.
+
+-- =====================================================================
+-- APPENDIX — Sesi manusia pasien <-> psikolog: CHAT TEKS (16 Okt 2026)
+-- =====================================================================
+-- LiveKit menangani panggilan suara/video (room `sesi-<bookingId>`).
+-- Tabel ini untuk chat teks per booking — dipakai mobile (pasien) & portal
+-- (psikolog). Realtime opsional: tanpa Realtime, klien memakai polling.
+create table if not exists session_messages (
+  id uuid primary key default gen_random_uuid(),
+  booking_id uuid not null references bookings(id) on delete cascade,
+  sender_id uuid not null references auth.users(id),
+  sender_role text not null check (sender_role in ('patient', 'psychologist')),
+  content text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists session_messages_booking_idx
+  on session_messages (booking_id, created_at);
+
+alter table session_messages enable row level security;
+
+-- Baca: hanya pasien & psikolog pemilik booking.
+drop policy if exists "session_messages_select_participants" on session_messages;
+create policy "session_messages_select_participants" on session_messages
+  for select using (
+    exists (
+      select 1 from bookings b
+      where b.id = session_messages.booking_id
+        and (b.patient_id = auth.uid() or b.psychologist_id = auth.uid())
+    )
+  );
+
+-- Kirim: pengirim = dirinya sendiri, dan perannya cocok dengan booking.
+drop policy if exists "session_messages_insert_participants" on session_messages;
+create policy "session_messages_insert_participants" on session_messages
+  for insert with check (
+    sender_id = auth.uid()
+    and exists (
+      select 1 from bookings b
+      where b.id = session_messages.booking_id
+        and (
+          (b.patient_id = auth.uid() and sender_role = 'patient')
+          or (b.psychologist_id = auth.uid() and sender_role = 'psychologist')
+        )
+    )
+  );
+
+-- Realtime (opsional). Diabaikan otomatis bila publikasi belum tersedia.
+do $$ begin
+  alter publication supabase_realtime add table session_messages;
+exception when others then null; end $$;
+
+-- Penanda pasien membuka ruang sesi (notifikasi sekali + indikator "menunggu"
+-- di dashboard psikolog). Ada di DB ter-provision sekalipun belum di file ini.
+alter table bookings add column if not exists patient_joined_at timestamptz;
+
+-- =====================================================================
+-- APPENDIX — Ringkasan AI naratif untuk psikolog (16 Okt 2026)
+-- =====================================================================
+-- PRD Bagian 12 poin 5. Sudah ada di DB cloud; diisi otomatis oleh
+-- /api/cron/daily dan best-effort dari /api/companion (lib/summary.ts).
+-- Ditampilkan di dashboard psikolog dengan label "catatan AI — referensi awal".
+create table if not exists ai_summaries (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references patients(id),
+  summary text not null,
+  period_start date,
+  period_end date,
+  created_at timestamptz not null default now()
+);
+-- `notified_psychologist_ids` disiapkan untuk audit penerima notifikasi
+-- (belum dipakai kode; notifikasi saat ini dicatat lewat log server).

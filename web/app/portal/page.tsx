@@ -34,7 +34,7 @@ export default function PortalLoginPage() {
         router.replace("/portal/psikolog");
         return;
       }
-      setWrongRole(me.data.role === "patient" ? "Akun ini adalah akun pasien — gunakan aplikasi mobile Kokoro Cure." : "Akun ini tidak punya akses portal.");
+      setWrongRole(me.data.role === "patient" ? "Akun ini adalah akun pasien — gunakan aplikasi mobile Vsikolog." : "Akun ini tidak punya akses portal.");
       setChecking(false);
     },
     [router],
@@ -77,7 +77,7 @@ export default function PortalLoginPage() {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6 py-12">
-      <h1 className="font-display text-[26px] leading-tight">Portal Kokoro Cure</h1>
+      <h1 className="font-display text-[26px] leading-tight">Portal Vsikolog</h1>
       <p className="mt-2 text-[13px] leading-relaxed text-text/70">
         Khusus Admin dan Psikolog. Pasien menggunakan aplikasi mobile.
       </p>

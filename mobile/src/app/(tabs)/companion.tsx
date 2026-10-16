@@ -268,17 +268,22 @@ export default function CompanionScreen() {
     const { reply, flagged, expression: replyExpression, onCall, escalated, crisisContact } = result.data;
     setExpression(replyExpression);
     setSubtitle(reply);
-    if (flagged) {
+    /* Dipaksa langsung ke psikolog saat kondisi "khawatir" (atau ter-flag krisis).
+       Bila server memilih psikolog on-call → ke ruang krisis psikolog itu;
+       kalau belum ada, ke daftar psikolog. Jeda singkat supaya balasan & suara
+       sempat menenangkan dulu; percakapan tetap tersimpan. */
+    const worry = flagged || replyExpression === 'khawatir';
+    if (worry) {
       setCrisis({ onCall, escalated });
-      /* Kondisi "khawatir" → redirect paksa ke psikolog yang dipilih server
-         (acak, on-call diutamakan). Jeda singkat supaya balasan & suara
-         sempat menenangkan dulu; percakapan tetap tersimpan. */
-      if (crisisContact && !forceRedirectRef.current) {
+      if (!forceRedirectRef.current) {
         forceRedirectRef.current = true;
         keepSpeakingRef.current = true;
+        const target = crisisContact
+          ? `/psikolog/${crisisContact.id}?krisis=1`
+          : '/psikolog';
         redirectTimerRef.current = setTimeout(() => {
-          router.push(`/psikolog/${crisisContact.id}?krisis=1` as never);
-        }, 1200);
+          router.push(target as never);
+        }, 1400);
       }
     }
     setMessages((current) => [

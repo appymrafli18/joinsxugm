@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-## AnimaCure — Platform Kesehatan Mental Berbasis Avatar Anime & AI
+## Vsikolog — Platform Kesehatan Mental Berbasis Avatar Anime & AI
 
 **Versi:** 2.0 (revisi lengkap untuk tim)
 **Konteks:** Hackathon Healthcare — FMIPA UGM
@@ -11,7 +11,7 @@ fitur, alur, dan kebutuhan teknologi AI secara fungsional.
 
 ## 1. Ringkasan Eksekutif
 
-AnimaCure adalah platform kesehatan mental yang menghubungkan psikolog
+Vsikolog adalah platform kesehatan mental yang menghubungkan psikolog
 berlisensi dengan pengguna melalui avatar anime (gaya VTuber) dan AI di
 latar belakang. Target pengguna adalah individu dengan gejala hikikomori
 (penarikan diri sosial ekstrem) dan kecemasan sosial berat, yang sulit
@@ -91,7 +91,7 @@ label informal yang berpotensi menyinggung target pengguna.)*
 
 ## 5. Model Bisnis
 
-AnimaCure memakai tiga lapis layanan dengan aturan biaya yang berbeda —
+Vsikolog memakai tiga lapis layanan dengan aturan biaya yang berbeda —
 ini keputusan yang sengaja dipisah demi keselamatan pasien:
 
 | Lapisan | Biaya | Kapan dipakai |

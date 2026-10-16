@@ -52,6 +52,7 @@ export async function createBooking(input: {
   psychologistId: string;
   scheduledAt: string;
   paymentMethod: PaymentMethod;
+  sessionMode?: 'voice' | 'video';
   note?: string;
 }): Promise<CreateBookingResult> {
   const result = await postJson<{ booking: Booking; psychologist: { nickname: string | null } }>(

@@ -1,7 +1,7 @@
-# Design Document — Kokoro Cure
+# Design Document — Vsikolog
 
-Dokumen ini menjelaskan **konsep dan alasan** di balik tampilan Kokoro
-Cure — mood, gaya visual, dan rasional tiap halaman. Untuk **nilai
+Dokumen ini menjelaskan **konsep dan alasan** di balik tampilan
+Vsikolog — mood, gaya visual, dan rasional tiap halaman. Untuk **nilai
 teknis** (hex warna, nama font, radius) lihat `docs/design-tokens.md`
 secara terpisah — dokumen itu adalah turunan teknis dari keputusan di
 sini, bukan sumber keputusan.

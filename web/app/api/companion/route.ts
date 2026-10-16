@@ -8,9 +8,11 @@ import {
   type ArchetypeId,
   type Expression,
 } from '@/lib/companion';
+import { escalateOverdueAlerts, notifyPsychologistOfCrisis } from '@/lib/crisisService';
 import { createServiceClient, requireUser } from '@/lib/serverAuth';
 import { runDailySentimentIfNeeded } from '@/lib/sentiment';
-import { recomputePatientTier, CRISIS_SLA_MINUTES } from '@/lib/tierService';
+import { runDailySummaryIfNeeded } from '@/lib/summary';
+import { recomputePatientTier } from '@/lib/tierService';
 
 /**
  * POST /api/companion — endpoint AI Companion (docs/api-contract.md).
@@ -76,17 +78,15 @@ export async function POST(request: Request): Promise<Response> {
   if (patientError) return json({ error: 'Gagal memverifikasi akun.' }, 500);
   if (!patient) return json({ error: 'Akun ini bukan akun pasien.' }, 403);
 
-  /* 3a. Eskalasi malas (tanpa cron): alert pending > SLA ditandai escalated,
-     dan pillah apakah ada psikolog on-call untuk pesan yang jujur ke pasien. */
-  const slaCutoff = new Date(Date.now() - CRISIS_SLA_MINUTES * 60 * 1000).toISOString();
-  const { data: escalatedRows } = await service
-    .from('crisis_alerts')
-    .update({ status: 'escalated' })
-    .eq('patient_id', user.id)
-    .eq('status', 'pending')
-    .lt('created_at', slaCutoff)
-    .select('id');
-  const escalated = (escalatedRows?.length ?? 0) > 0;
+  /* 3a. Sweep SLA krisis. Jalur utama adalah cron /api/cron/sweep; ini
+     fallback best-effort agar eskalasi tetap berjalan walau cron belum
+     dipasang. Semua alert pending yang lewat SLA → escalated + notifikasi
+     tim. `escalated` menandai apakah alert pasien INI yang barusan naik. */
+  const escalatedAlerts = await escalateOverdueAlerts(service).catch((error) => {
+    console.warn('[companion] sweep SLA gagal:', error);
+    return [];
+  });
+  const escalated = escalatedAlerts.some((alert) => alert.patientId === user.id);
 
   const { count: onCallCount } = await service
     .from('psychologists')
@@ -200,17 +200,30 @@ export async function POST(request: Request): Promise<Response> {
         .eq('id', user.id);
     }
 
-    const { error: alertError } = await service.from('crisis_alerts').insert({
-      patient_id: user.id,
-      chat_log_id: userLog.id,
-      patient_nickname: patient.nickname,
-      trigger_excerpt: message.slice(0, 200),
-      status: 'pending',
-    });
-    if (alertError) {
+    const { data: alertRow, error: alertError } = await service
+      .from('crisis_alerts')
+      .insert({
+        patient_id: user.id,
+        chat_log_id: userLog.id,
+        patient_nickname: patient.nickname,
+        trigger_excerpt: message.slice(0, 200),
+        status: 'pending',
+      })
+      .select('id')
+      .single();
+    if (alertError || !alertRow) {
       // Keselamatan: alert krisis wajib tercatat — gagal = error keras.
       console.error('[companion] GAGAL simpan crisis_alerts:', alertError);
       return json({ error: 'Gagal memicu peringatan krisis.' }, 500);
+    }
+    /* Notifikasi psikolog on-call yang dipilih (PRD Bagian 9 poin 2).
+       Best-effort: tidak menahan respons pasien; helper tidak pernah melempar. */
+    if (crisisContact) {
+      void notifyPsychologistOfCrisis(service, crisisContact.id, {
+        patientNickname: patient.nickname,
+        excerpt: message.slice(0, 200),
+        alertId: alertRow.id,
+      });
     }
     // Override triase: krisis aktif → tier high (PRD Bagian 8).
     await recomputePatientTier(service, user.id);
@@ -224,6 +237,11 @@ export async function POST(request: Request): Promise<Response> {
       return null;
     })
     .catch((error) => console.warn('[companion] sentimen harian gagal:', error));
+
+  /* 8a. Ringkasan AI naratif harian best-effort (PRD Bagian 12 poin 5). */
+  void runDailySummaryIfNeeded(service, user.id).catch((error) =>
+    console.warn('[companion] ringkasan harian gagal:', error),
+  );
 
   return json({ reply, flagged, expression, onCall, escalated, crisisContact });
 }

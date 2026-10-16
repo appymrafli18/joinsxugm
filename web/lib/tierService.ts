@@ -62,6 +62,3 @@ export async function recomputePatientTier(
   }
   return tier;
 }
-
-/** SLA respons psikolog on-call sebelum alert ditandai escalated (menit). */
-export const CRISIS_SLA_MINUTES = 15;

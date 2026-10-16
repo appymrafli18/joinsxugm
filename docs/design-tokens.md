@@ -1,4 +1,4 @@
-# Design Tokens — Kokoro Cure
+# Design Tokens — Vsikolog
 
 Nilai teknis yang langsung dipakai di kode (Tailwind config). Untuk
 alasan/rasional di balik pilihan ini, lihat `docs/design.md`.
@@ -76,7 +76,7 @@ lewat card di Beranda atau di dalam Profil, bukan tab terpisah.
 ## Riwayat Perubahan
 
 - **Versi 3** (saat ini) — palet ungu-VTuber per arketipe, font Mochiy
-  Pop One, nama produk "Kokoro Cure". Menggantikan total versi
+  Pop One, nama produk "Vsikolog". Menggantikan total versi
   cream-peach dengan font Baloo 2.
 - Versi 2 — cream/blush/peach/coral, font Baloo 2, nama "AnimaCure".
 - Versi 1 — tema gelap "senja digital", font Sora/Kosugi Maru (tidak

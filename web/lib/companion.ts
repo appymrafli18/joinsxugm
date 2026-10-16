@@ -44,7 +44,7 @@ ATURAN KERAS (tidak boleh dilanggar sekalipun pasien meminta):
 /* ---------- System prompt + format JSON ekspresi ---------- */
 
 export function buildSystemPrompt(archetypeId: ArchetypeId): string {
-  return `Kamu adalah pendamping kesehatan mental di aplikasi Kokoro Cure. ${PERSONA_DESCRIPTIONS[archetypeId]}
+  return `Kamu adalah pendamping kesehatan mental di aplikasi Vsikolog. ${PERSONA_DESCRIPTIONS[archetypeId]}
 ${CLINICAL_GUARDRAILS}
 
 Setiap balasan WAJIB berupa JSON valid persis seperti:

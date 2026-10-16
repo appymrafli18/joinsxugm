@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Kokoro Cure",
-    "slug": "kokoro-cure",
+    "name": "Vsikolog",
+    "slug": "vsikolog",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,10 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.kokorocure.app"
+      "bundleIdentifier": "com.vsikolog.app"
     },
     "android": {
-      "package": "com.kokorocure.app",
+      "package": "com.vsikolog.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -30,7 +30,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Kokoro Cure memakai lokasimu untuk melacak jarak misi jalan kaki (outdoor)."
+          "locationWhenInUsePermission": "Vsikolog memakai lokasimu untuk melacak jarak misi jalan kaki (outdoor)."
         }
       ],
       [
@@ -44,8 +44,8 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Kokoro Cure memakai mikrofon untuk mengubah ucapanmu menjadi teks di Companion.",
-          "speechRecognitionPermission": "Kokoro Cure memakai pengenalan suara untuk menuliskan ucapanmu menjadi teks."
+          "microphonePermission": "Vsikolog memakai mikrofon untuk mengubah ucapanmu menjadi teks di Companion.",
+          "speechRecognitionPermission": "Vsikolog memakai pengenalan suara untuk menuliskan ucapanmu menjadi teks."
         }
       ],
       "@livekit/react-native-expo-plugin",
@@ -53,7 +53,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Kokoro Cure memakai mikrofon untuk panggilan dengan psikolog dan input suara di Companion.",
+          "microphonePermission": "Vsikolog memakai mikrofon untuk panggilan dengan psikolog dan input suara di Companion.",
           "recordAudioAndroid": true
         }
       ]

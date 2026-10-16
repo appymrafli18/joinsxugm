@@ -1,8 +1,10 @@
-# Database Schema — AnimaCure (Supabase/Postgres)
+# Database Schema — Vsikolog (Supabase/Postgres)
 
-Skema ini dipakai bersama oleh `mobile/` (Flutter, sisi pasien) dan
-`dashboard/` (Next.js, sisi psikolog). Satu project Supabase untuk
-keduanya.
+Skema ini dipakai bersama oleh aplikasi pasien `mobile/` (**React Native +
+Expo**, berjalan di Expo Go) dan portal `web/` (Next.js — UI Admin/Psikolog +
+API server). Satu project Supabase untuk keduanya.
+
+> Sumber kebenaran = `docs/schema.sql`. Perbarui kedua file bersamaan.
 
 > Status: rancangan awal untuk MVP hackathon. Kolom bisa bertambah seiring
 > fitur berkembang — update file ini setiap ada perubahan skema.
@@ -17,6 +19,8 @@ keduanya.
 | `sentiment_logs` | Hasil analisis sentimen per sesi/hari |
 | `crisis_alerts` | Catatan saat indikasi risiko terdeteksi |
 | `quests` | Progres misi Game-CBT Quest Engine |
+| `bookings` | Booking sesi konsultasi dengan psikolog |
+| `session_messages` | Chat teks per sesi konsultasi (pasien ↔ psikolog) |
 
 ---
 
@@ -85,6 +89,26 @@ keduanya.
 | `completed_at` | `timestamptz` | Nullable |
 
 ---
+
+## `session_messages`
+
+Chat teks per sesi konsultasi (pasien ↔ psikolog manusia). Panggilan
+suara/video ditangani LiveKit, bukan tabel ini.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `id` | `uuid` (PK) | |
+| `booking_id` | `uuid` (FK → `bookings.id`, on delete cascade) | Sesi terkait |
+| `sender_id` | `uuid` (FK → `auth.users.id`) | Pengirim |
+| `sender_role` | `text` | `patient` / `psychologist` |
+| `content` | `text` | Isi pesan |
+| `created_at` | `timestamptz` | Default `now()` |
+
+Realtime opsional (klien punya polling fallback). Lihat `docs/schema.sql`
+(appendix sesi).
+
+Notifikasi "pasien menunggu" memakai kolom `bookings.patient_joined_at`
+(`timestamptz`, nullable) — diisi saat pasien membuka ruang sesi.
 
 ## Row Level Security (RLS) — wajib diaktifkan
 

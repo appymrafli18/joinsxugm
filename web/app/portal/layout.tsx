@@ -1,6 +1,6 @@
 export const metadata = {
   title: 'Portal — Vsikolog',
-  description: 'Portal Admin & Psikolog Kokoro Cure.',
+  description: 'Portal Admin & Psikolog Vsikolog.',
 };
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {

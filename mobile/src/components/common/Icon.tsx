@@ -71,3 +71,9 @@ export const MicOffIcon = ({ color = COLORS.text, size = 21 }: { color?: string;
     <Path d="M4 4l16 16" />
   </Icon>
 );
+export const VideoIcon = ({ color = COLORS.text, size = 22 }: { color?: string; size?: number }) => (
+  <Icon color={color} size={size}>
+    <Rect x="2.5" y="6" width="12" height="12" rx="3" />
+    <Path d="m14.5 12 6-3.5v11l-6-3.5" />
+  </Icon>
+);

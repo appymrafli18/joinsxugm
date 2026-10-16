@@ -1,5 +1,6 @@
 import { requirePortalRole } from '@/lib/roles';
 import { createServiceClient } from '@/lib/serverAuth';
+import { notifyEscalationToTeam } from '@/lib/crisisService';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
@@ -53,9 +54,26 @@ async function loadAssignedPatients(service: SupabaseClient, psychologistId: str
     }
   }
 
+  /* Ringkasan AI naratif terbaru per pasien — juga hanya jika consent aktif. */
+  const summaryByPatient: Record<string, { summary: string; date: string }> = {};
+  if (consentedIds.length > 0) {
+    const { data: summaries } = await service
+      .from('ai_summaries')
+      .select('patient_id, summary, period_start')
+      .in('patient_id', consentedIds)
+      .order('period_start', { ascending: false })
+      .limit(300);
+    for (const row of summaries ?? []) {
+      if (!summaryByPatient[row.patient_id]) {
+        summaryByPatient[row.patient_id] = { summary: row.summary, date: row.period_start };
+      }
+    }
+  }
+
   return list.map((p) => ({
     ...p,
     latestSentiment: sentimentByPatient[p.id] ?? null,
+    latestSummary: summaryByPatient[p.id] ?? null,
   }));
 }
 
@@ -78,14 +96,19 @@ export async function GET(request: Request): Promise<Response> {
   const patientIds = patients.map((p) => p.id);
 
   /* Alert krisis: untuk pasien yang ditangani; on-call juga melihat semua
-     alert pending agar eskalasi tidak macet (PRD Bagian 9). */
+     alert pending + escalated (yang belum ditangani siapa pun) agar eskalasi
+     tidak macet (PRD Bagian 9). */
   let alertsQuery = service
     .from('crisis_alerts')
     .select('id, patient_id, patient_nickname, trigger_excerpt, status, acknowledged_by, created_at')
     .order('created_at', { ascending: false })
     .limit(50);
   alertsQuery = patientIds.length > 0
-    ? alertsQuery.or(`patient_id.in.(${patientIds.join(',')})${profile.is_on_call ? ',status.eq.pending' : ''}`)
+    ? alertsQuery.or(
+        `patient_id.in.(${patientIds.join(',')})${
+          profile.is_on_call ? ',status.eq.pending,status.eq.escalated' : ''
+        }`,
+      )
     : alertsQuery;
   if (patientIds.length === 0 && !profile.is_on_call) {
     alertsQuery = alertsQuery.eq('patient_id', '00000000-0000-0000-0000-000000000000');
@@ -94,7 +117,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const { data: bookings } = await service
     .from('bookings')
-    .select('id, patient_id, scheduled_at, status, paid_with, payment_status, price, points_used, duration_minutes, session_mode, patient_note, created_at')
+    .select('*')
     .eq('psychologist_id', user.id)
     .order('scheduled_at', { ascending: false })
     .limit(50);
@@ -191,6 +214,27 @@ export async function POST(request: Request): Promise<Response> {
     return json({ is_on_call: body.is_on_call });
   }
 
+  /* ---------- konfirmasi / selesaikan booking sesi ---------- */
+  if (body.action === 'booking-status') {
+    const bookingId = typeof body.bookingId === 'string' ? body.bookingId : '';
+    const status = body.status;
+    if (!bookingId || (status !== 'confirmed' && status !== 'completed' && status !== 'cancelled')) {
+      return json({ error: 'Parameter booking tidak valid.' }, 400);
+    }
+    const { data: booking, error } = await service
+      .from('bookings')
+      .update(status === 'confirmed' ? { status, payment_status: 'paid' } : { status })
+      .eq('id', bookingId)
+      .eq('psychologist_id', user.id)
+      .select('id, patient_id, scheduled_at, status, paid_with, payment_status, price, points_used, duration_minutes, session_mode, patient_note, created_at')
+      .maybeSingle();
+    if (error || !booking) {
+      console.error('[portal/psikolog] gagal update booking:', error);
+      return json({ error: 'Gagal memperbarui sesi.' }, 404);
+    }
+    return json({ booking });
+  }
+
   /* ---------- acknowledge / selesaikan alert krisis ---------- */
   if (body.action === 'alert-ack') {
     const alertId = typeof body.alertId === 'string' ? body.alertId : '';
@@ -200,7 +244,7 @@ export async function POST(request: Request): Promise<Response> {
     }
     const { data: alert } = await service
       .from('crisis_alerts')
-      .select('id, patient_id')
+      .select('id, patient_id, status')
       .eq('id', alertId)
       .maybeSingle();
     if (!alert) return json({ error: 'Alert tidak ditemukan.' }, 404);
@@ -225,6 +269,22 @@ export async function POST(request: Request): Promise<Response> {
       console.error('[portal/psikolog] gagal update alert:', error);
       return json({ error: 'Gagal memperbarui alert.' }, 500);
     }
+
+    /* Eskalasi manual psikolog → beri tahu seluruh tim terverifikasi
+       (paralel dengan jalur otomatis SLA). Hindari spam bila status sudah
+       escalated sebelumnya. */
+    if (status === 'escalated' && alert.status !== 'escalated') {
+      await notifyEscalationToTeam(service, [
+        {
+          alertId: data.id,
+          patientId: data.patient_id,
+          nickname: data.patient_nickname ?? null,
+          excerpt: data.trigger_excerpt ?? null,
+          createdAt: data.created_at,
+        },
+      ]);
+    }
+
     return json({ alert: data });
   }
 
